@@ -30,7 +30,7 @@ import { useTheme } from "next-themes";
 const zLanguage = z.enum(["cpp", "java", "javascript", "python"]);
 const zStatus = z.enum(["success", "failure", "error", "api_failure"]);
 
-export const zSortBy = z.enum([
+const zSortBy = z.enum([
   "timestamp_asc",
   "timestamp_dsc",
   "username_asc",
@@ -50,7 +50,7 @@ const zSubmission = z.object({
   status: zStatus,
 });
 
-export const zSearchParams = z.object({
+const zSearchParams = z.object({
   username: z.string().optional(),
   language: zLanguage.array().optional(),
   status: zStatus.array().optional(),
@@ -59,9 +59,6 @@ export const zSearchParams = z.object({
   sortBy: zSortBy.default("timestamp_dsc"),
 });
 
-type SortBy = z.infer<typeof zSortBy>;
-type Language = z.infer<typeof zLanguage>;
-type Status = z.infer<typeof zStatus>;
 type Submission = z.infer<typeof zSubmission>;
 type SearchParams = z.infer<typeof zSearchParams>;
 
@@ -131,7 +128,7 @@ export default function Page() {
         else setParams({ ...params, page: params.page + 1 });
       });
     }
-  }, [inView, params, fetchSubmissions]);
+  }, [inView, params, data]);
 
   const columns: ColumnDef<Submission>[] = [
     {
