@@ -1,113 +1,233 @@
-import Image from "next/image";
+"use client";
+
+import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/use-toast";
+import useSessionStorage from "@/components/use-session-storage";
+import { zodResolver } from "@hookform/resolvers/zod";
+import Editor from "@monaco-editor/react";
+import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+
+const zLanguage = z.enum(["cpp", "java", "javascript", "python"]);
+type Language = z.infer<typeof zLanguage>;
+const formSchema = z.object({
+  username: z
+    .string()
+    .min(3)
+    .max(20)
+    .regex(/^(?![-.])[a-zA-Z0-9._-]+(?<![-.])$/),
+  language: zLanguage,
+  stdin: z.string(),
+  code: z.string(),
+});
+
+const defaultCode = {
+  cpp: `#include <iostream>
+
+int main() {
+    std::cout << "Hello World!";
+    return 0;
+}
+`,
+  java: `class Program {
+  public static void main(String[] args) {
+      System.out.println("Hello World!"); 
+  }
+}
+`,
+  javascript: `console.log('Hello World!');`,
+  python: `print("Hello World!")`,
+};
 
 export default function Home() {
+  const { theme } = useTheme();
+  const [cppCode, setCppCode] = useSessionStorage("cpp", defaultCode.cpp);
+  const [javaCode, setJavaCode] = useSessionStorage("java", defaultCode.java);
+  const [jsCode, setJsCode] = useSessionStorage("js", defaultCode.javascript);
+  const [pyCode, setPyCode] = useSessionStorage("py", defaultCode.python);
+  const [initialValues] = useSessionStorage("formValues", {
+    username: "",
+    code: defaultCode.cpp,
+    language: "cpp" as Language,
+    stdin: "",
+  });
+
+  const getCode = () => {
+    const lang = form.getValues().language;
+    if (lang == "java") return javaCode;
+    if (lang == "python") return pyCode;
+    if (lang == "javascript") return jsCode;
+    return cppCode;
+  };
+
+  const setCode = (code: string) => {
+    const lang = form.getValues().language;
+    if (lang == "java") setJavaCode(code);
+    else if (lang == "python") setPyCode(code);
+    else if (lang == "javascript") setJsCode(code);
+    else setCppCode(code);
+    form.setValue("code", code);
+  };
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: initialValues,
+  });
+
+  const formValues = form.watch();
+
+  useEffect(() => {
+    sessionStorage.setItem("formValues", JSON.stringify(formValues));
+  }, [formValues]);
+
+  const { toast } = useToast();
+  const [canSubmit, setCanSubmit] = useState(true);
+
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!canSubmit) return;
+    setCanSubmit(false);
+    toast({
+      title: "Submitting...",
+    });
+    const response = await (
+      await fetch(`http://localhost:3000/api/submissions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(values),
+      })
+    ).json();
+
+    if (response["success"] === true) {
+      toast({
+        title: "Submitted",
+      });
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Submission failed",
+      });
+    }
+    setCanSubmit(true);
+  }
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">src/app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col">
+        <div className="relative flex flex-row mt-5 mx-5 gap-5">
+          <FormField
+            control={form.control}
+            name="username"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Username</FormLabel>
+                <FormControl>
+                  <Input placeholder="username" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="language"
+            defaultValue="cpp"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Language</FormLabel>
+                <FormControl>
+                  <Select
+                    defaultValue="cpp"
+                    value={field.value}
+                    onValueChange={(v) => {
+                      form.setValue("language", v as Language);
+                      setCode(getCode());
+                    }}
+                  >
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="cpp">C++</SelectItem>
+                        <SelectItem value="java">Java</SelectItem>
+                        <SelectItem value="javascript">JavaScript</SelectItem>
+                        <SelectItem value="python">Python</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <Button type="submit" className="mt-8">
+            Submit
+          </Button>
         </div>
-      </div>
-
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-full sm:before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-full sm:after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 before:lg:h-[360px] z-[-1]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Explore starter templates for Next.js.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50 text-balance`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
+        <div className="mx-5 mt-5">
+          <FormField
+            control={form.control}
+            defaultValue=""
+            name="stdin"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>STDIN</FormLabel>
+                <FormControl>
+                  <Textarea placeholder="stdin" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        <div className="mx-5 mt-5">
+          <FormField
+            control={form.control}
+            defaultValue={defaultCode["cpp"]}
+            name="code"
+            render={() => (
+              <FormItem>
+                <FormLabel>Code</FormLabel>
+                <FormControl>
+                  <Editor
+                    className="border"
+                    height="60vh"
+                    defaultLanguage={initialValues.language}
+                    defaultValue={defaultCode["cpp"]}
+                    language={form.getValues().language}
+                    theme={theme === "light" ? "light" : "vs-dark"}
+                    value={getCode()}
+                    onChange={(v) => setCode(v ?? "")}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+      </form>
+    </Form>
   );
 }
