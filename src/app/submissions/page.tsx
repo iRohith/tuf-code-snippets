@@ -101,7 +101,9 @@ async function fetchSubmissions(params: SearchParams) {
     .parse(
       await (
         await fetch(
-          `http://localhost:3000/api/submissions?${objectToUrlParams(params)}`
+          `https://tufcs-backend.onrender.com/api/submissions?${objectToUrlParams(
+            params
+          )}`
         )
       ).json()
     );

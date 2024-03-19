@@ -110,7 +110,7 @@ export default function Home() {
       title: "Submitting...",
     });
     const response = await (
-      await fetch(`http://localhost:3000/api/submissions`, {
+      await fetch(`https://tufcs-backend.onrender.com/api/submissions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
